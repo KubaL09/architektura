@@ -1,0 +1,130 @@
+version: '3.8'
+
+services:
+  # Główna baza danych systemu
+  postgres:
+    image: postgres:15-alpine
+    container_name: trackflow-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: trackflow
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_secure_password_2026
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d trackflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Pamięć podręczna (Cache) dla redirectów i sesji
+  redis:
+    image: redis:7-alpine
+    container_name: trackflow-redis
+    restart: always
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Broker komunikatów (Message Broker) dla zadań asynchronicznych
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: trackflow-rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672" # Panel administracyjny RabbitMQ Management
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Serwer SMTP (do przechwytywania maili w środowisku dev)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: trackflow-mailhog
+    restart: always
+    ports:
+      - "1025:1025" # Port SMTP
+      - "8025:8025" # Web UI Mailhog
+
+  # Serwer API HTTP (Fastify)
+  api:
+    build:
+      context: ../
+      dockerfile: ./infra/Dockerfile.api # Zostanie utworzony w kroku 1 implementacji
+    container_name: trackflow-api
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      JWT_SECRET: super_secure_jwt_secret_token_trackflow_2026
+      DATABASE_URL: postgresql://postgres:postgres_secure_password_2026@postgres:5432/trackflow?schema=public
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      PDF_STORAGE_PATH: /app/storage/reports
+    volumes:
+      - shared_reports:/app/storage/reports
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # Worker Service (Przetwarzanie zadań w tle i zadania cykliczne)
+  worker:
+    build:
+      context: ../
+      dockerfile: ./infra/Dockerfile.worker # Zostanie utworzony w kroku 1 implementacji
+    container_name: trackflow-worker
+    restart: always
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres_secure_password_2026@postgres:5432/trackflow?schema=public
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      SMTP_FROM: TrackFlow <noreply@trackflow.io>
+      PDF_STORAGE_PATH: /app/storage/reports
+    volumes:
+      - shared_reports:/app/storage/reports
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  shared_reports:
+    driver: local
