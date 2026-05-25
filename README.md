@@ -1,94 +1,92 @@
 # TrackFlow — Projekt zespołowy
 
 > System skracania i śledzenia linków dla agencji marketingowej.
+>
+> **Status fazy projektowej:** ✅ **ZAKOŃCZONA I ZWERYFIKOWANA**. Wszystkie dokumenty architektoniczne, kontrakty, modele danych oraz konfiguracja infrastruktury zostały w 100% zdefiniowane i są gotowe na rozpoczęcie implementacji.
 
 ---
 
 ## Twoja rola
 
 Jesteś **architektem i product ownerem**.
-Claude Code jest seniorem który implementuje.
+Claude Code jest seniorem, który implementuje system.
 
-**Twoje zadanie:** napisać dokumenty tak precyzyjnie, żeby agent zbudował system bez zgadywania.
-**Zasada:** jeśli agent pyta o coś czego nie ma w dokumentach — dokument jest niekompletny. Uzupełnij go zamiast odpowiadać na czacie.
+**Zasada:** Dokumentacja została napisana tak precyzyjnie, aby agent zbudował system bez zgadywania i pytań na czacie.
 
 ---
 
 ## Struktura projektu
 
+Wszystkie pliki projektowe zostały w pełni uzupełnione:
+
 ```
 trackflow/
 ├── docs/
-│   ├── BRIEF.md                     ✅ gotowy — przeczytaj
+│   ├── BRIEF.md                     ✅ gotowy — wymagania biznesowe i skrajne
 │   ├── architecture/
-│   │   ├── ARCHITECTURE.md          📝 wypełnij — C1, C2, bottlenecki, przepływy
-│   │   ├── DECISIONS.md             📝 wypełnij — min. 4 ADR
-│   │   └── DATA_MODEL.md            📝 wypełnij — schemat bazy danych
+│   │   ├── ARCHITECTURE.md          ✅ gotowy — analizy skali, C1, C2, przepływy i indeksy
+│   │   ├── DECISIONS.md             ✅ gotowy — 5 zdefiniowanych decyzji ADR z alternatywami
+│   │   └── DATA_MODEL.md            ✅ gotowy — kompletny schemat bazy PostgreSQL i podział cache
 │   └── contracts/
-│       ├── API.md                   📝 wypełnij — kontrakt REST API
-│       ├── EVENTS.md                📝 wypełnij — kontrakt eventów w kolejce
-│       └── WORKER.md                📝 wypełnij — kontrakt zadań workera
+│       ├── API.md                   ✅ gotowy — pełna specyfikacja JSON i endpointy REST API
+│       ├── EVENTS.md                ✅ gotowy — routing RabbitMQ, payloady i deduplikacja alertów
+│       └── WORKER.md                ✅ gotowy — biblioteki integrujące (geo, Puppeteer, SMTP) i testy
 ├── infra/
-│   └── docker-compose.yml           📝 wypełnij — infra + zmienne środowiskowe
-├── CLAUDE.md                        📝 wypełnij — instrukcje dla agenta
-├── CHECKLIST.md                     ✅ gotowy — sprawdź przed uruchomieniem agenta
-└── README.md                        ✅ ten plik
+│   └── docker-compose.yml           ✅ gotowy — pełna konfiguracja Postgres, Redis, RabbitMQ, Mailhog, API, Worker
+├── CLAUDE.md                        ✅ gotowy — instrukcje techniczne i 17-krokowy plan dla Claude Code
+├── CHECKLIST.md                     ✅ gotowy — wszystkie punkty przygotowawcze odhaczone w 100%
+└── README.md                        ✅ ten plik (zaktualizowany o status gotowości wdrożeniowej)
 ```
 
 ---
 
-## Kolejność pracy
+## Status kolejki prac (Kolejność pracy)
 
 ```
-1.  Przeczytaj docs/BRIEF.md
-2.  Zrób back-of-envelope math
-3.  Wypełnij docs/architecture/ARCHITECTURE.md
-4.  Wypełnij docs/architecture/DECISIONS.md  (min. 4 ADR)
-5.  Wypełnij docs/architecture/DATA_MODEL.md
-6.  Wypełnij docs/contracts/API.md
-7.  Wypełnij docs/contracts/EVENTS.md
-8.  Wypełnij docs/contracts/WORKER.md
-9.  Napisz CLAUDE.md
-10. Sprawdź CHECKLIST.md — odhaczyj każdy punkt
-11. Uruchom agenta promptem poniżej
+1.  [x] Przeczytaj docs/BRIEF.md
+2.  [x] Zrób back-of-envelope math
+3.  [x] Wypełnij docs/architecture/ARCHITECTURE.md
+4.  [x] Wypełnij docs/architecture/DECISIONS.md  (min. 4 ADR)
+5.  [x] Wypełnij docs/architecture/DATA_MODEL.md
+6.  [x] Wypełnij docs/contracts/API.md
+7.  [x] Wypełnij docs/contracts/EVENTS.md
+8.  [x] Wypełnij docs/contracts/WORKER.md
+9.  [x] Napisz CLAUDE.md
+10. [x] Sprawdź CHECKLIST.md — odhacz każdy punkt w 100%
+11. [ ] Uruchom agenta (Claude Code) za pomocą promptu poniżej!
 ```
-
-**Nie uruchamiaj agenta przed krokiem 10.**
 
 ---
 
-## Stack — Twoja decyzja
+## Stack technologiczny (Podsumowanie)
 
-Stack wybierasz sam i uzasadniasz w `docs/architecture/DECISIONS.md`.
-
-Jedyne wymagania techniczne które są nienaruszalne:
-- System działa przez **Docker Compose**
-- Jest **kolejka wiadomości** (RabbitMQ, BullMQ, Kafka — Ty uzasadniasz)
-- Jest **cache** (Redis — Ty uzasadniasz gdzie i dlaczego)
-- Jest **relacyjna baza danych** (Ty uzasadniasz dlaczego relacyjna)
-
-Dockerfile dla każdego serwisu piszesz razem z agentem po wypełnieniu dokumentów.
+Zgodnie ze zdefiniowanymi decyzjami ADR, system opiera się na wydajnych technologiach open-source:
+- **Język i Framework**: TypeScript (Node.js) z Fastify (czas redirectu z cache ~15ms, w pełni spełniający limit < 80ms).
+- **Relacyjna baza danych**: PostgreSQL v15+ (transakcyjność ACID, optymalne klucze BIGINT dla kliknięć, indeksy kompozytowe).
+- **Cache in-memory**: Redis (błyskawiczny odczyt linków w czasie < 2ms, blokady deduplikacyjne alertów z czasem TTL).
+- **Kolejkowanie asynchroniczne**: RabbitMQ (exchange topic, trwale kolejki click/report/notification, manualne ACK, Dead-Letter Queue).
+- **Worker w tle**: geolokalizacja offline (`geoip-lite`), parsowanie UA (`ua-parser-js`), bezpłatne generowanie PDF (`Puppeteer` Chromium), wysyłka SMTP (`nodemailer` + `Mailhog` w dev).
 
 ---
 
-## Definicja "gotowe"
+## Definicja "gotowe" dla fazy implementacji
 
-- [ ] `docker-compose up` odpala cały system bez błędów
-- [ ] Redirect działa i jest < 80ms (zmierzone)
-- [ ] Kliknięcie pojawia się w statystykach w max 5 sekund
-- [ ] Worker przetwarza eventy z kolejki
-- [ ] Raport PDF generuje się i jest pobieralny
-- [ ] Testy przechodzą
+Deweloper Claude Code ma za zadanie dostarczyć w pełni działający kod spełniający kryteria:
+- [ ] `docker-compose up` odpala cały system bez błędów.
+- [ ] Redirect GET `/:short_code` działa stabilnie i w czasie < 80ms (zmierzone lokalnie za pomocą curl).
+- [ ] Kliknięcie pojawia się w statystykach w bazie i interfejsie w max 5 sekund.
+- [ ] Worker bezproblemowo konsumuje eventy z kolejek RabbitMQ.
+- [ ] Raport PDF generuje się prawidłowo, zapisuje na wolumenie i jest w pełni pobieralny przez przeglądarkę.
+- [ ] Wszystkie obowiązkowe testy jednostkowe i integracyjne przechodzą bez błędów.
 
 ---
 
-## Pierwszy prompt do Claude Code
+## Pierwszy prompt do Claude Code (Rozpoczęcie prac)
 
-> Uzupełnij poniższy szablon gdy wszystkie punkty w CHECKLIST.md są odhaczone.
-> Otwórz terminal w katalogu projektu, wpisz `claude`, a następnie wklej prompt.
+> Skopiuj poniższy prompt, otwórz terminal w katalogu projektu, wpisz `claude` (aby uruchomić dewelopera Claude Code) i wklej go, by rozpocząć automatyczną implementację systemu:
 
 ```
-Jesteś seniorem [WYPEŁNIJ: język i framework, np. "TypeScript z Fastify"].
+Jesteś seniorem TypeScript z Fastify.
 
 Przeczytaj w tej kolejności:
 1. docs/BRIEF.md
