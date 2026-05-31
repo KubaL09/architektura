@@ -1,0 +1,64 @@
+# Stage 1: Build
+FROM node:18-alpine AS builder
+
+WORKDIR /usr/src/app
+
+# Skip downloading Chrome during installation since we install it via apk in runner
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+
+# Copy package configs
+COPY package*.json ./
+COPY packages/db/package*.json ./packages/db/
+COPY apps/api/package*.json ./apps/api/
+COPY apps/worker/package*.json ./apps/worker/
+COPY apps/frontend/package*.json ./apps/frontend/
+
+RUN npm ci
+
+# Copy source files
+COPY tsconfig*.json ./
+COPY packages/db ./packages/db
+COPY apps/worker ./apps/worker
+
+# Generate Prisma Client
+RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
+
+# Build shared packages and apps
+RUN npm run build --workspace=packages/db
+RUN npm run build --workspace=apps/worker
+
+# Stage 2: Runtime
+FROM node:18-alpine AS runner
+
+WORKDIR /usr/src/app
+
+ENV NODE_ENV=production
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# Install system Chromium, dependencies, fonts, and Prisma libraries (openssl + libc6-compat)
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    openssl \
+    libc6-compat
+
+# Copy config files
+COPY package*.json ./
+COPY packages/db/package*.json ./packages/db/
+COPY apps/worker/package*.json ./apps/worker/
+
+# Copy built resources and node_modules
+COPY --from=builder /usr/src/app/node_modules ./node_modules
+COPY --from=builder /usr/src/app/packages/db/dist ./packages/db/dist
+COPY --from=builder /usr/src/app/packages/db/prisma ./packages/db/prisma
+COPY --from=builder /usr/src/app/apps/worker/dist ./apps/worker/dist
+
+# Create storage directory for reports
+RUN mkdir -p /app/storage/reports
+
+CMD ["node", "apps/worker/dist/index.js"]

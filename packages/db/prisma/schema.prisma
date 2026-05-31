@@ -1,0 +1,85 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl", "linux-musl-openssl-3.0.x"]
+}
+
+model User {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String   @unique
+  password_hash String
+  role          String   // 'marketer' | 'client'
+  created_at    DateTime @default(now()) @db.Timestamptz
+
+  // Relations
+  created_links  Link[]   @relation("CreatedLinks")
+  assigned_links Link[]   @relation("AssignedLinks")
+  reports        Report[] @relation("RequestedReports")
+
+  @@map("users")
+}
+
+model Link {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  short_code    String    @unique @db.VarChar(10)
+  original_url  String    @db.Text
+  campaign_name String?   @db.VarChar(100)
+  client_id     String?   @db.Uuid
+  expires_at    DateTime? @db.Timestamptz
+  created_by    String    @db.Uuid
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  updated_at    DateTime  @default(now()) @db.Timestamptz
+  deleted_at    DateTime? @db.Timestamptz
+
+  // Relations
+  creator User    @relation("CreatedLinks", fields: [created_by], references: [id], onDelete: Cascade)
+  client  User?   @relation("AssignedLinks", fields: [client_id], references: [id], onDelete: SetNull)
+  clicks  Click[]
+
+  @@index([created_by])
+  @@map("links")
+}
+
+model Click {
+  id          BigInt   @id @default(autoincrement())
+  link_id     String   @db.Uuid
+  clicked_at  DateTime @db.Timestamptz
+  country     String?  @db.VarChar(50)
+  city        String?  @db.VarChar(100)
+  device_type String?  @db.VarChar(20) // 'mobile' | 'desktop' | 'tablet'
+  browser     String?  @db.VarChar(50)
+  os          String?  @db.VarChar(50)
+  referrer    String?  @db.Text
+  ip_hash     String?  @db.VarChar(64)
+  event_id    String   @unique @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  // Relations
+  link Link @relation(fields: [link_id], references: [id], onDelete: Cascade)
+
+  @@index([link_id, clicked_at])
+  @@index([clicked_at])
+  @@map("clicks")
+}
+
+model Report {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  status        String    @db.VarChar(20) // 'pending' | 'processing' | 'done' | 'failed'
+  requested_by  String    @db.Uuid
+  date_from     DateTime  @db.Timestamptz
+  date_to       DateTime  @db.Timestamptz
+  file_path     String?   @db.Text
+  error_message String?   @db.Text
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  completed_at  DateTime? @db.Timestamptz
+
+  // Relations
+  requester User @relation("RequestedReports", fields: [requested_by], references: [id], onDelete: Cascade)
+
+  @@index([requested_by, created_at])
+  @@map("reports")
+}

@@ -1,0 +1,51 @@
+# Dependency directories
+node_modules/
+
+# Build and compilation outputs
+dist/
+dist-ssr/
+*.tsbuildinfo
+out/
+
+# Environment files and secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+# But allow the example environment file
+!/.env.example
+
+# Local storage and compiled report files
+/storage/
+/apps/worker/storage/
+*.pdf
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE / Editor configuration files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS metadata
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# App-specific caches and local system generated files
+.gemini/
+.system_generated/

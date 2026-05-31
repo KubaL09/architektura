@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Główna baza danych systemu
   postgres:
@@ -73,6 +71,7 @@ services:
     restart: always
     ports:
       - "3000:3000"
+    command: sh -c "npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma && npx tsx packages/db/prisma/seed.ts && node apps/api/dist/index.js"
     environment:
       NODE_ENV: development
       PORT: 3000
@@ -118,6 +117,20 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+
+  # Panel Frontendowy (React SPA + Nginx)
+  frontend:
+    build:
+      context: ../
+      dockerfile: ./infra/Dockerfile.frontend
+      args:
+        - VITE_API_URL=http://localhost:3000
+    container_name: trackflow-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - api
 
 volumes:
   postgres_data:

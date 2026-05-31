@@ -1,0 +1,37 @@
+# Stage 1: Build
+FROM node:20-alpine AS builder
+
+WORKDIR /usr/src/app
+
+# Copy root and workspace package files
+COPY package*.json ./
+COPY packages/db/package*.json ./packages/db/
+COPY apps/api/package*.json ./apps/api/
+COPY apps/worker/package*.json ./apps/worker/
+COPY apps/frontend/package*.json ./apps/frontend/
+
+# Install all dependencies (including devDependencies)
+RUN npm ci
+
+# Copy source files
+COPY tsconfig*.json ./
+COPY packages/db ./packages/db
+COPY apps/frontend ./apps/frontend
+
+# Accept VITE_API_URL build argument (defaults to http://localhost:3000)
+ARG VITE_API_URL=http://localhost:3000
+ENV VITE_API_URL=$VITE_API_URL
+
+# Build the frontend SPA
+RUN npm run build --workspace=apps/frontend
+
+# Stage 2: Runtime (Nginx to serve static files)
+FROM nginx:alpine AS runner
+
+# Copy built frontend assets to Nginx default public directory
+COPY --from=builder /usr/src/app/apps/frontend/dist /usr/share/nginx/html
+
+# Expose port 80
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
